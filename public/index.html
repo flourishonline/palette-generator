@@ -249,6 +249,47 @@ main { max-width: 860px; margin: 0 auto; padding: 48px 24px 80px; }
 }
 .error-msg.visible { display: block; }
 
+/* ── CAPTURE SECTION ── */
+.capture-section {
+  background: var(--white);
+  border: 1px solid var(--sand);
+  border-radius: 14px;
+  padding: 28px;
+  margin-top: 24px;
+  display: none;
+}
+.capture-section.visible { display: block; animation: fadeUp 0.4s ease both; }
+.capture-eyebrow { font-size: 10px; letter-spacing: 0.28em; text-transform: uppercase; color: var(--rose); font-weight: 500; margin-bottom: 8px; }
+.capture-title { font-family: var(--serif); font-size: 1.5rem; font-weight: 300; color: var(--ink); margin-bottom: 6px; }
+.capture-title em { font-style: italic; color: var(--rose); }
+.capture-sub { font-size: 0.85rem; color: var(--ink-light); line-height: 1.65; margin-bottom: 22px; }
+.capture-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px; }
+.capture-fields .full { grid-column: 1 / -1; }
+.cap-field { display: flex; flex-direction: column; gap: 5px; }
+.cap-field label { font-size: 0.72rem; letter-spacing: 0.09em; text-transform: uppercase; color: var(--ink-light); font-weight: 500; }
+.cap-field input {
+  background: var(--cream); border: 1.5px solid var(--sand);
+  border-radius: 8px; padding: 11px 13px;
+  font-family: var(--sans); font-size: 0.88rem; font-weight: 300;
+  color: var(--ink); outline: none; transition: border-color 0.2s;
+}
+.cap-field input:focus { border-color: var(--rose); }
+.cap-field input::placeholder { color: #C4B5B0; }
+.cap-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.cap-submit {
+  font-family: var(--sans); font-size: 0.85rem; font-weight: 500;
+  background: var(--rose); color: white; border: none;
+  border-radius: 8px; padding: 13px 24px; cursor: pointer;
+  transition: all 0.2s;
+}
+.cap-submit:hover { background: var(--rose-dark); transform: translateY(-1px); box-shadow: 0 4px 14px rgba(201,123,110,0.28); }
+.cap-submit:disabled { background: var(--sand); color: #B0A09C; cursor: not-allowed; transform: none; box-shadow: none; }
+.cap-skip { font-size: 0.78rem; color: var(--ink-light); background: none; border: none; cursor: pointer; padding: 4px; }
+.cap-skip:hover { color: var(--rose); }
+.cap-status { font-size: 0.8rem; margin-top: 10px; min-height: 18px; font-style: italic; }
+.cap-status.success { color: #5A8A5A; }
+.cap-status.error { color: #B05050; }
+
 /* ── FOOTER NOTE ── */
 .foot-note {
   text-align: center; margin-top: 48px;
@@ -342,6 +383,32 @@ main { max-width: 860px; margin: 0 auto; padding: 48px 24px 80px; }
       <button class="try-again-btn" onclick="resetAll()">← Try another image</button>
     </div>
     <div class="palettes-grid" id="palettes-grid"></div>
+
+    <!-- EMAIL CAPTURE -->
+    <div class="capture-section" id="capture-section">
+      <p class="capture-eyebrow">Keep your palettes</p>
+      <h3 class="capture-title">Save these to <em>your inbox</em></h3>
+      <p class="capture-sub">Pop your details in and we'll email all three palettes with hex codes — plus you'll be the first to hear about new Flourish tools, brand resources, and the occasional nudge to finally build that website.</p>
+      <div class="capture-fields">
+        <div class="cap-field">
+          <label>First Name</label>
+          <input type="text" id="cap-firstname" placeholder="e.g. Sarah">
+        </div>
+        <div class="cap-field">
+          <label>Last Name</label>
+          <input type="text" id="cap-lastname" placeholder="e.g. Mitchell">
+        </div>
+        <div class="cap-field full">
+          <label>Email Address</label>
+          <input type="email" id="cap-email" placeholder="e.g. sarah@sarahmitchell.com.au">
+        </div>
+      </div>
+      <div class="cap-actions">
+        <button class="cap-submit" id="cap-submit" onclick="subscribeAC()">Send me my palettes →</button>
+        <button class="cap-skip" onclick="skipCapture()">No thanks, I'll just copy the hex codes</button>
+      </div>
+      <div class="cap-status" id="cap-status"></div>
+    </div>
   </div>
 
   <p class="foot-note">
@@ -428,6 +495,10 @@ function clearImage(e) {
   document.getElementById('file-input').value = '';
   document.getElementById('results').style.display = 'none';
   document.getElementById('results').classList.remove('visible');
+  document.getElementById('capture-section').classList.remove('visible');
+  document.getElementById('cap-status').textContent = '';
+  document.getElementById('cap-submit').disabled = false;
+  document.getElementById('cap-submit').textContent = 'Send me my palettes →';
 }
 
 // ── GENERATE ─────────────────────────────────────────
@@ -548,6 +619,7 @@ function renderPalettes(palettes) {
   requestAnimationFrame(() => {
     document.getElementById('results').classList.add('visible');
     document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setTimeout(() => { document.getElementById('capture-section').classList.add('visible'); }, 900);
   });
 }
 
@@ -649,6 +721,69 @@ function showToast(msg) {
   t.textContent = msg;
   t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ── ACTIVECAMPAIGN CAPTURE ────────────────────────────
+async function subscribeAC() {
+  const firstName = document.getElementById('cap-firstname').value.trim();
+  const lastName = document.getElementById('cap-lastname').value.trim();
+  const email = document.getElementById('cap-email').value.trim();
+  const statusEl = document.getElementById('cap-status');
+  const btn = document.getElementById('cap-submit');
+
+  if (!email || !email.includes('@')) {
+    statusEl.textContent = 'Please enter a valid email address.';
+    statusEl.className = 'cap-status error';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Sending…';
+  statusEl.textContent = '';
+  statusEl.className = 'cap-status';
+
+  try {
+    const response = await fetch('/api/subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ firstName, lastName, email })
+    });
+
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Subscription failed');
+
+    // Also send the palettes to their email via the existing send-email endpoint
+    if (window._palettes && window._palettes.length) {
+      const lines = window._palettes.map(p =>
+        p.name + '\n' + p.mood + '\n' + p.colours.map(c => `  ${c.role}: ${c.hex} — ${c.name}`).join('\n')
+      ).join('\n\n---\n\n');
+      fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: firstName,
+          email,
+          copyText: 'YOUR BRAND COLOUR PALETTES\nGenerated by Flourish Online\n\n' + lines,
+          businessName: 'Colour Palettes'
+        })
+      });
+    }
+
+    statusEl.textContent = '✓ Done! Your palettes are on their way to ' + email;
+    statusEl.className = 'cap-status success';
+    btn.textContent = 'Sent ✓';
+
+  } catch (err) {
+    statusEl.textContent = err.message || 'Something went wrong — please try again.';
+    statusEl.className = 'cap-status error';
+    btn.disabled = false;
+    btn.textContent = 'Send me my palettes →';
+  }
+}
+
+function skipCapture() {
+  document.getElementById('capture-section').classList.remove('visible');
+  showToast('No worries — hex codes are yours to copy anytime!');
 }
 </script>
 </body>
