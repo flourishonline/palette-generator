@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flourish — Brand Colour Palette Generator</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --cream: #FAF7F2; --blush: #F2E4DC; --rose: #C97B6E; --rose-dark: #A85E53;
+  --ink: #2C2420; --ink-light: #6B5751; --sand: #E8DDD4; --white: #FFFEFB;
+  --serif: 'Cormorant Garamond', Georgia, serif;
+  --sans: 'DM Sans', system-ui, sans-serif;
+}
+html { font-size: 16px; }
+body { background: var(--cream); color: var(--ink); font-family: var(--sans); font-weight: 300; min-height: 100vh; }
+
+/* ── HEADER ── */
+header {
+  background: var(--white);
+  border-bottom: 1px solid var(--sand);
+  padding: 48px 24px 40px;
+  text-align: center;
+}
+.logo-mark { font-size: 11px; letter-spacing: 0.28em; text-transform: uppercase; color: var(--rose); font-weight: 500; margin-bottom: 16px; }
+header h1 { font-family: var(--serif); font-size: clamp(2rem, 5vw, 3rem); font-weight: 300; line-height: 1.15; color: var(--ink); margin-bottom: 10px; }
+header h1 em { font-style: italic; color: var(--rose); }
+header p { font-size: 0.92rem; color: var(--ink-light); max-width: 460px; margin: 0 auto; line-height: 1.7; }
+
+/* ── MAIN ── */
+main { max-width: 860px; margin: 0 auto; padding: 48px 24px 80px; }
+
+/* ── UPLOAD ZONE ── */
+.upload-zone {
+  background: var(--white);
+  border: 2px dashed var(--sand);
+  border-radius: 16px;
+  padding: 48px 24px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.25s;
+  position: relative;
+  margin-bottom: 24px;
+}
+.upload-zone:hover, .upload-zone.drag-over { border-color: var(--rose); background: #FDF0EC; }
+.upload-zone.has-image { border-style: solid; border-color: var(--rose); padding: 0; overflow: hidden; }
+.upload-icon { font-size: 2.5rem; margin-bottom: 14px; opacity: 0.5; }
+.upload-title { font-family: var(--serif); font-size: 1.4rem; font-weight: 300; color: var(--ink); margin-bottom: 6px; }
+.upload-sub { font-size: 0.84rem; color: var(--ink-light); line-height: 1.6; margin-bottom: 18px; }
+.upload-btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-family: var(--sans); font-size: 0.82rem; font-weight: 500;
+  background: var(--rose); color: white;
+  border: none; border-radius: 8px; padding: 11px 22px;
+  cursor: pointer; transition: all 0.2s;
+}
+.upload-btn:hover { background: var(--rose-dark); }
+#file-input { display: none; }
+#preview-img {
+  width: 100%; max-height: 380px; object-fit: cover;
+  display: none; border-radius: 14px;
+}
+.preview-overlay {
+  display: none;
+  position: absolute; inset: 0;
+  background: rgba(44,36,32,0.45);
+  border-radius: 14px;
+  align-items: center; justify-content: center;
+  gap: 10px;
+}
+.upload-zone.has-image:hover .preview-overlay { display: flex; }
+.overlay-btn {
+  font-family: var(--sans); font-size: 0.78rem; font-weight: 500;
+  background: white; color: var(--ink);
+  border: none; border-radius: 6px; padding: 9px 16px;
+  cursor: pointer; transition: all 0.2s;
+}
+.overlay-btn:hover { background: var(--blush); }
+
+/* ── OPTIONS ── */
+.options-row {
+  display: flex; gap: 16px; align-items: flex-end;
+  margin-bottom: 28px; flex-wrap: wrap;
+}
+.field { flex: 1; min-width: 200px; display: flex; flex-direction: column; gap: 6px; }
+.field label { font-size: 0.75rem; letter-spacing: 0.09em; text-transform: uppercase; color: var(--ink-light); font-weight: 500; }
+.field select {
+  background: var(--white); border: 1.5px solid var(--sand);
+  border-radius: 8px; padding: 11px 13px;
+  font-family: var(--sans); font-size: 0.88rem; font-weight: 300;
+  color: var(--ink); outline: none; transition: border-color 0.2s;
+}
+.field select:focus { border-color: var(--rose); }
+
+.generate-btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--sans); font-size: 0.88rem; font-weight: 500;
+  letter-spacing: 0.04em;
+  background: var(--rose); color: white;
+  border: none; border-radius: 8px; padding: 13px 28px;
+  cursor: pointer; transition: all 0.2s;
+  height: 46px; flex-shrink: 0;
+}
+.generate-btn:hover { background: var(--rose-dark); transform: translateY(-1px); box-shadow: 0 4px 16px rgba(201,123,110,0.3); }
+.generate-btn:disabled { background: var(--sand); color: #B0A09C; cursor: not-allowed; transform: none; box-shadow: none; }
+
+/* ── LOADING ── */
+.loading-state {
+  display: none; text-align: center; padding: 60px 24px;
+}
+.loading-state.visible { display: block; animation: fadeUp 0.3s ease; }
+.palette-spinner {
+  display: flex; align-items: center; justify-content: center;
+  gap: 8px; margin-bottom: 20px;
+}
+.swatch-pulse {
+  width: 32px; height: 32px; border-radius: 50%;
+  animation: pulse 1.2s ease-in-out infinite;
+}
+.swatch-pulse:nth-child(1) { background: #C97B6E; animation-delay: 0s; }
+.swatch-pulse:nth-child(2) { background: #D4A59A; animation-delay: 0.15s; }
+.swatch-pulse:nth-child(3) { background: #8B6E6B; animation-delay: 0.3s; }
+.swatch-pulse:nth-child(4) { background: #F2E4DC; animation-delay: 0.45s; }
+@keyframes pulse {
+  0%, 100% { transform: scale(0.8); opacity: 0.5; }
+  50% { transform: scale(1.1); opacity: 1; }
+}
+.loading-text { font-family: var(--serif); font-size: 1.3rem; font-weight: 300; color: var(--ink-light); font-style: italic; }
+
+/* ── RESULTS ── */
+#results { display: none; }
+#results.visible { display: block; animation: fadeUp 0.4s ease; }
+@keyframes fadeUp { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:translateY(0); } }
+
+.results-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 28px; flex-wrap: wrap; gap: 12px;
+}
+.results-title { font-family: var(--serif); font-size: 1.6rem; font-weight: 300; color: var(--ink); }
+.results-title em { font-style: italic; color: var(--rose); }
+.try-again-btn {
+  font-family: var(--sans); font-size: 0.8rem; font-weight: 500;
+  background: none; border: 1.5px solid var(--sand); border-radius: 8px;
+  padding: 10px 18px; color: var(--ink-light); cursor: pointer; transition: all 0.2s;
+}
+.try-again-btn:hover { border-color: var(--rose); color: var(--rose); }
+
+/* ── PALETTE CARDS ── */
+.palettes-grid { display: flex; flex-direction: column; gap: 24px; }
+
+.palette-card {
+  background: var(--white);
+  border: 1px solid var(--sand);
+  border-radius: 16px;
+  overflow: hidden;
+  transition: box-shadow 0.2s;
+}
+.palette-card:hover { box-shadow: 0 8px 32px rgba(44,36,32,0.08); }
+
+.palette-banner {
+  height: 80px;
+  display: flex;
+}
+.banner-swatch { flex: 1; transition: flex 0.3s; }
+.banner-swatch:hover { flex: 2; }
+
+.palette-body { padding: 22px 24px 20px; }
+
+.palette-top {
+  display: flex; align-items: flex-start;
+  justify-content: space-between; gap: 16px;
+  margin-bottom: 20px;
+}
+.palette-name { font-family: var(--serif); font-size: 1.35rem; font-weight: 400; color: var(--ink); }
+.palette-mood { font-size: 0.83rem; color: var(--ink-light); line-height: 1.55; max-width: 420px; }
+
+.swatches-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+.swatch-item { display: flex; flex-direction: column; gap: 8px; }
+.swatch-block {
+  height: 64px; border-radius: 8px;
+  cursor: pointer; position: relative;
+  transition: transform 0.15s, box-shadow 0.15s;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+.swatch-block:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,0.14); }
+.swatch-block::after {
+  content: '⎘';
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.18); border-radius: 8px;
+  color: white; font-size: 1rem;
+  opacity: 0; transition: opacity 0.15s;
+}
+.swatch-block:hover::after { opacity: 1; }
+.swatch-block.copied::after { content: '✓'; opacity: 1; }
+
+.swatch-meta { }
+.swatch-role {
+  font-size: 0.65rem; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--rose); font-weight: 500;
+}
+.swatch-name { font-size: 0.8rem; color: var(--ink); font-weight: 400; margin: 1px 0; }
+.swatch-hex {
+  font-size: 0.75rem; color: var(--ink-light); font-family: monospace;
+  cursor: pointer; transition: color 0.15s;
+}
+.swatch-hex:hover { color: var(--rose); }
+
+.palette-actions {
+  display: flex; gap: 10px; margin-top: 18px;
+  padding-top: 16px; border-top: 1px solid var(--sand);
+  flex-wrap: wrap;
+}
+.action-btn {
+  font-family: var(--sans); font-size: 0.76rem; font-weight: 500;
+  letter-spacing: 0.04em;
+  background: none; border: 1px solid var(--sand);
+  border-radius: 6px; padding: 8px 14px;
+  cursor: pointer; color: var(--ink-light); transition: all 0.2s;
+}
+.action-btn:hover { border-color: var(--rose); color: var(--rose); background: #FDF0EC; }
+.action-btn.primary-action { background: var(--rose); border-color: var(--rose); color: white; }
+.action-btn.primary-action:hover { background: var(--rose-dark); border-color: var(--rose-dark); color: white; }
+
+/* ── TOAST ── */
+.toast {
+  position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(20px);
+  background: var(--ink); color: white;
+  font-family: var(--sans); font-size: 0.82rem; font-weight: 400;
+  padding: 10px 20px; border-radius: 8px;
+  opacity: 0; transition: all 0.25s;
+  pointer-events: none; white-space: nowrap;
+  z-index: 1000;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ── ERROR ── */
+.error-msg {
+  text-align: center; padding: 32px;
+  background: #FDF0EC; border-radius: 10px;
+  border: 1px solid #E0CECA;
+  font-size: 0.88rem; color: var(--rose-dark);
+  line-height: 1.6; display: none;
+}
+.error-msg.visible { display: block; }
+
+/* ── FOOTER NOTE ── */
+.foot-note {
+  text-align: center; margin-top: 48px;
+  font-size: 0.78rem; color: var(--ink-light); line-height: 1.6;
+}
+.foot-note a { color: var(--rose); text-decoration: none; }
+.foot-note a:hover { text-decoration: underline; }
+
+@media (max-width: 560px) {
+  .swatches-row { grid-template-columns: repeat(2, 1fr); }
+  .options-row { flex-direction: column; }
+  .generate-btn { width: 100%; justify-content: center; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <p class="logo-mark">Flourish Online</p>
+  <h1>Your brand colours,<br><em>found in your inspiration.</em></h1>
+  <p>Upload an image from Pinterest or anywhere online — we'll extract the feeling and turn it into 3 ready-to-use brand colour palettes, with hex codes and role suggestions.</p>
+</header>
+
+<main>
+
+  <!-- UPLOAD -->
+  <div class="upload-zone" id="upload-zone"
+    ondragover="handleDragOver(event)"
+    ondragleave="handleDragLeave(event)"
+    ondrop="handleDrop(event)"
+    onclick="triggerUpload(event)">
+    <img id="preview-img" alt="Uploaded inspiration image">
+    <div class="preview-overlay" id="preview-overlay">
+      <button class="overlay-btn" onclick="triggerFileInput(event)">Change image</button>
+      <button class="overlay-btn" onclick="clearImage(event)">Remove</button>
+    </div>
+    <div id="upload-placeholder">
+      <div class="upload-icon">🎨</div>
+      <div class="upload-title">Upload your inspiration image</div>
+      <p class="upload-sub">Drag & drop a saved Pinterest image, screenshot, or any photo<br>that captures the feeling you want for your brand.</p>
+      <button class="upload-btn" onclick="triggerFileInput(event)">
+        <span>Choose image</span>
+      </button>
+    </div>
+    <input type="file" id="file-input" accept="image/*" onchange="handleFileSelect(event)">
+  </div>
+
+  <!-- OPTIONS -->
+  <div class="options-row">
+    <div class="field">
+      <label>Brand Archetype <span style="text-transform:none;letter-spacing:0;font-weight:300;font-style:italic">(optional — refines palette names & mood)</span></label>
+      <select id="archetype-select">
+        <option value="">— No archetype / skip —</option>
+        <option value="Lover">Lover — Intimate, passionate, sensory</option>
+        <option value="Nurturer">Nurturer — Warm, caring, supportive</option>
+        <option value="Sage">Sage — Wise, credible, insight-driven</option>
+        <option value="Rebel">Rebel — Bold, disruptive, unapologetic</option>
+        <option value="Creator">Creator — Expressive, original, visionary</option>
+        <option value="Ruler">Ruler — Authoritative, refined, commanding</option>
+        <option value="Magician">Magician — Transformative, mysterious, awe-inspiring</option>
+        <option value="Hero">Hero — Brave, driven, results-focused</option>
+        <option value="Jester">Jester — Playful, funny, irreverent</option>
+        <option value="Innocent">Innocent — Optimistic, pure, joyful</option>
+        <option value="Explorer">Explorer — Free, curious, adventurous</option>
+        <option value="Everyman">Everyman — Relatable, grounded, community-driven</option>
+      </select>
+    </div>
+    <button class="generate-btn" id="generate-btn" onclick="generatePalettes()" disabled>
+      ✦ Generate palettes
+    </button>
+  </div>
+
+  <!-- LOADING -->
+  <div class="loading-state" id="loading-state">
+    <div class="palette-spinner">
+      <div class="swatch-pulse"></div>
+      <div class="swatch-pulse"></div>
+      <div class="swatch-pulse"></div>
+      <div class="swatch-pulse"></div>
+    </div>
+    <p class="loading-text">Reading your image and crafting palettes…</p>
+  </div>
+
+  <!-- ERROR -->
+  <div class="error-msg" id="error-msg"></div>
+
+  <!-- RESULTS -->
+  <div id="results">
+    <div class="results-header">
+      <div class="results-title">Your <em>palettes</em></div>
+      <button class="try-again-btn" onclick="resetAll()">← Try another image</button>
+    </div>
+    <div class="palettes-grid" id="palettes-grid"></div>
+  </div>
+
+  <p class="foot-note">
+    Generated by Flourish Online &nbsp;✦&nbsp;
+    <a href="https://flourishonline.com.au">flourishonline.com.au</a>
+    &nbsp;✦&nbsp; Take our <a href="https://flourishonline.com/quiz">Brand Archetype Quiz</a>
+  </p>
+
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let imageBase64 = null;
+let imageMimeType = null;
+
+// ── DRAG & DROP ──────────────────────────────────────
+function handleDragOver(e) {
+  e.preventDefault();
+  document.getElementById('upload-zone').classList.add('drag-over');
+}
+function handleDragLeave(e) {
+  document.getElementById('upload-zone').classList.remove('drag-over');
+}
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('upload-zone').classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file && file.type.startsWith('image/')) processFile(file);
+}
+function triggerUpload(e) {
+  // Only trigger if clicking the placeholder area, not a button
+  if (e.target.closest('button') || e.target.closest('#preview-overlay')) return;
+  if (!imageBase64) triggerFileInput(e);
+}
+function triggerFileInput(e) {
+  e.stopPropagation();
+  document.getElementById('file-input').click();
+}
+function handleFileSelect(e) {
+  const file = e.target.files[0];
+  if (file) processFile(file);
+}
+
+function processFile(file) {
+  if (file.size > 10 * 1024 * 1024) {
+    showToast('Image is too large — please use an image under 10MB');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const result = e.target.result;
+    const [header, data] = result.split(',');
+    imageBase64 = data;
+    imageMimeType = file.type;
+
+    const img = document.getElementById('preview-img');
+    img.src = result;
+    img.style.display = 'block';
+
+    document.getElementById('upload-placeholder').style.display = 'none';
+    document.getElementById('upload-zone').classList.add('has-image');
+    document.getElementById('generate-btn').disabled = false;
+
+    // Hide results if re-uploading
+    document.getElementById('results').style.display = 'none';
+    document.getElementById('results').classList.remove('visible');
+    document.getElementById('error-msg').classList.remove('visible');
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearImage(e) {
+  e.stopPropagation();
+  imageBase64 = null;
+  imageMimeType = null;
+  const zone = document.getElementById('upload-zone');
+  zone.classList.remove('has-image');
+  const img = document.getElementById('preview-img');
+  img.style.display = 'none';
+  img.src = '';
+  document.getElementById('upload-placeholder').style.display = 'block';
+  document.getElementById('generate-btn').disabled = true;
+  document.getElementById('file-input').value = '';
+  document.getElementById('results').style.display = 'none';
+  document.getElementById('results').classList.remove('visible');
+}
+
+// ── GENERATE ─────────────────────────────────────────
+async function generatePalettes() {
+  if (!imageBase64) return;
+
+  const archetype = document.getElementById('archetype-select').value;
+
+  // Show loading
+  document.getElementById('loading-state').classList.add('visible');
+  document.getElementById('results').style.display = 'none';
+  document.getElementById('results').classList.remove('visible');
+  document.getElementById('error-msg').classList.remove('visible');
+  document.getElementById('generate-btn').disabled = true;
+
+  try {
+    const response = await fetch('/api/analyse-palette', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageBase64, mediaType: imageMimeType, archetype })
+    });
+
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Something went wrong');
+
+    renderPalettes(data.palettes);
+
+  } catch (err) {
+    document.getElementById('error-msg').textContent = `Couldn't generate palettes — ${err.message}. Please try again or use a different image.`;
+    document.getElementById('error-msg').classList.add('visible');
+  } finally {
+    document.getElementById('loading-state').classList.remove('visible');
+    document.getElementById('generate-btn').disabled = false;
+  }
+}
+
+// ── RENDER ───────────────────────────────────────────
+function renderPalettes(palettes) {
+  const grid = document.getElementById('palettes-grid');
+  grid.innerHTML = '';
+
+  palettes.forEach((palette, pi) => {
+    const card = document.createElement('div');
+    card.className = 'palette-card';
+
+    // Banner
+    const banner = document.createElement('div');
+    banner.className = 'palette-banner';
+    palette.colours.forEach(c => {
+      const s = document.createElement('div');
+      s.className = 'banner-swatch';
+      s.style.background = c.hex;
+      banner.appendChild(s);
+    });
+
+    // Body
+    const body = document.createElement('div');
+    body.className = 'palette-body';
+
+    // Top row
+    const top = document.createElement('div');
+    top.className = 'palette-top';
+    top.innerHTML = `
+      <div>
+        <div class="palette-name">${palette.name}</div>
+        <div class="palette-mood">${palette.mood}</div>
+      </div>`;
+
+    // Swatches
+    const swatchRow = document.createElement('div');
+    swatchRow.className = 'swatches-row';
+
+    palette.colours.forEach((colour, ci) => {
+      const item = document.createElement('div');
+      item.className = 'swatch-item';
+
+      const block = document.createElement('div');
+      block.className = 'swatch-block';
+      block.style.background = colour.hex;
+      block.title = `Copy ${colour.hex}`;
+      block.onclick = () => copyHex(colour.hex, block);
+
+      const meta = document.createElement('div');
+      meta.className = 'swatch-meta';
+      meta.innerHTML = `
+        <div class="swatch-role">${colour.role}</div>
+        <div class="swatch-name">${colour.name}</div>
+        <div class="swatch-hex" onclick="copyHex('${colour.hex}', this)">${colour.hex}</div>`;
+
+      item.appendChild(block);
+      item.appendChild(meta);
+      swatchRow.appendChild(item);
+    });
+
+    // Actions
+    const actions = document.createElement('div');
+    actions.className = 'palette-actions';
+    actions.innerHTML = `
+      <button class="action-btn primary-action" onclick="copyAllHex(${pi})">Copy all hex codes</button>
+      <button class="action-btn" onclick="downloadPalette(${pi})">↓ Download as PNG</button>
+    `;
+
+    body.appendChild(top);
+    body.appendChild(swatchRow);
+    body.appendChild(actions);
+    card.appendChild(banner);
+    card.appendChild(body);
+
+    // Store palette data on card for download
+    card.dataset.palette = JSON.stringify(palette);
+    grid.appendChild(card);
+  });
+
+  // Store palettes globally for download
+  window._palettes = palettes;
+
+  document.getElementById('results').style.display = 'block';
+  requestAnimationFrame(() => {
+    document.getElementById('results').classList.add('visible');
+    document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+}
+
+// ── COPY ─────────────────────────────────────────────
+function copyHex(hex, el) {
+  navigator.clipboard.writeText(hex).then(() => {
+    showToast(`Copied ${hex}`);
+    if (el.classList.contains('swatch-block')) {
+      el.classList.add('copied');
+      setTimeout(() => el.classList.remove('copied'), 1500);
+    }
+  });
+}
+
+function copyAllHex(paletteIndex) {
+  const palette = window._palettes[paletteIndex];
+  const text = palette.colours.map(c => `${c.role}: ${c.hex}  (${c.name})`).join('\n');
+  const full = `${palette.name}\n${'-'.repeat(30)}\n${text}`;
+  navigator.clipboard.writeText(full).then(() => showToast('All hex codes copied!'));
+}
+
+// ── DOWNLOAD PNG ─────────────────────────────────────
+function downloadPalette(paletteIndex) {
+  const palette = window._palettes[paletteIndex];
+  const canvas = document.createElement('canvas');
+  const W = 1200, H = 440;
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+
+  const swatchW = W / palette.colours.length;
+  const swatchH = 260;
+
+  // Background
+  ctx.fillStyle = '#FAF7F2';
+  ctx.fillRect(0, 0, W, H);
+
+  // Swatches
+  palette.colours.forEach((c, i) => {
+    ctx.fillStyle = c.hex;
+    ctx.beginPath();
+    const r = 12;
+    const x = i * swatchW + 16;
+    const y = 24;
+    const w = swatchW - 32;
+    const h = swatchH;
+    ctx.roundRect(x, y, w, h, r);
+    ctx.fill();
+  });
+
+  // Labels
+  ctx.textAlign = 'left';
+  palette.colours.forEach((c, i) => {
+    const x = i * swatchW + 24;
+    const baseY = swatchH + 52;
+
+    ctx.fillStyle = '#C97B6E';
+    ctx.font = '500 18px DM Sans, Arial';
+    ctx.fillText(c.role.toUpperCase(), x, baseY);
+
+    ctx.fillStyle = '#2C2420';
+    ctx.font = '400 22px DM Sans, Arial';
+    ctx.fillText(c.name, x, baseY + 30);
+
+    ctx.fillStyle = '#6B5751';
+    ctx.font = '300 20px DM Sans, Arial';
+    ctx.fillText(c.hex, x, baseY + 56);
+  });
+
+  // Palette name
+  ctx.fillStyle = '#2C2420';
+  ctx.font = '300 28px Cormorant Garamond, Georgia, serif';
+  ctx.textAlign = 'left';
+  ctx.fillText(palette.name, 24, H - 28);
+
+  // Branding
+  ctx.fillStyle = '#C97B6E';
+  ctx.font = '500 16px DM Sans, Arial';
+  ctx.textAlign = 'right';
+  ctx.fillText('flourishonline.com.au', W - 24, H - 28);
+
+  // Download
+  const link = document.createElement('a');
+  link.download = palette.name.toLowerCase().replace(/\s+/g, '-') + '-palette.png';
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+  showToast('Palette downloaded!');
+}
+
+// ── RESET ────────────────────────────────────────────
+function resetAll() {
+  clearImage({ stopPropagation: () => {} });
+  document.getElementById('loading-state').classList.remove('visible');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ── TOAST ─────────────────────────────────────────────
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+</script>
+</body>
+</html>
