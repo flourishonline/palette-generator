@@ -177,10 +177,16 @@ main { max-width: 860px; margin: 0 auto; padding: 48px 24px 80px; }
 
 .swatches-row {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 10px;
 }
-.swatch-item { display: flex; flex-direction: column; gap: 8px; }
+.swatch-item { display: flex; flex-direction: column; gap: 7px; }
+.swatch-item.is-pop .swatch-block {
+  height: 80px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+  outline: 2.5px solid var(--ink);
+  outline-offset: 2px;
+}
 .swatch-block {
   height: 64px; border-radius: 8px;
   cursor: pointer; position: relative;
@@ -201,15 +207,27 @@ main { max-width: 860px; margin: 0 auto; padding: 48px 24px 80px; }
 
 .swatch-meta { }
 .swatch-role {
-  font-size: 0.65rem; letter-spacing: 0.1em; text-transform: uppercase;
+  font-size: 0.62rem; letter-spacing: 0.1em; text-transform: uppercase;
   color: var(--rose); font-weight: 500;
 }
-.swatch-name { font-size: 0.8rem; color: var(--ink); font-weight: 400; margin: 1px 0; }
+.swatch-item.is-pop .swatch-role { color: var(--ink); font-weight: 700; }
+.swatch-name { font-size: 0.76rem; color: var(--ink); font-weight: 400; margin: 1px 0; }
 .swatch-hex {
-  font-size: 0.75rem; color: var(--ink-light); font-family: monospace;
+  font-size: 0.7rem; color: var(--ink-light); font-family: monospace;
   cursor: pointer; transition: color 0.15s;
 }
 .swatch-hex:hover { color: var(--rose); }
+.swatch-use {
+  font-size: 0.62rem; color: var(--ink-light); line-height: 1.35;
+  font-style: italic; margin-top: 1px;
+}
+.contrast-badge {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 0.6rem; font-weight: 600; letter-spacing: 0.04em;
+  padding: 2px 6px; border-radius: 20px; margin-top: 3px;
+}
+.contrast-badge.pass { background: #E8F5E9; color: #2E7D32; }
+.contrast-badge.fail { background: #FFEBEE; color: #C62828; }
 
 .palette-actions {
   display: flex; gap: 10px; margin-top: 18px;
@@ -299,7 +317,7 @@ main { max-width: 860px; margin: 0 auto; padding: 48px 24px 80px; }
 .foot-note a:hover { text-decoration: underline; }
 
 @media (max-width: 560px) {
-  .swatches-row { grid-template-columns: repeat(2, 1fr); }
+  .swatches-row { grid-template-columns: repeat(3, 1fr); }
   .options-row { flex-direction: column; }
   .generate-btn { width: 100%; justify-content: center; }
 }
@@ -454,29 +472,42 @@ function handleFileSelect(e) {
 }
 
 function processFile(file) {
-  if (file.size > 10 * 1024 * 1024) {
-    showToast('Image is too large — please use an image under 10MB');
+  if (file.size > 20 * 1024 * 1024) {
+    showToast('Image is too large — please use an image under 20MB');
     return;
   }
   const reader = new FileReader();
   reader.onload = (e) => {
     const result = e.target.result;
-    const [header, data] = result.split(',');
-    imageBase64 = data;
-    imageMimeType = file.type;
 
-    const img = document.getElementById('preview-img');
-    img.src = result;
-    img.style.display = 'block';
+    // Compress image to max 1200px wide and quality 0.82 before sending
+    const imgEl = new Image();
+    imgEl.onload = () => {
+      const MAX = 1200;
+      let w = imgEl.width, h = imgEl.height;
+      if (w > MAX) { h = Math.round(h * MAX / w); w = MAX; }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(imgEl, 0, 0, w, h);
+      const compressed = canvas.toDataURL('image/jpeg', 0.82);
+      const data = compressed.split(',')[1];
+      imageBase64 = data;
+      imageMimeType = 'image/jpeg';
 
-    document.getElementById('upload-placeholder').style.display = 'none';
-    document.getElementById('upload-zone').classList.add('has-image');
-    document.getElementById('generate-btn').disabled = false;
+      const img = document.getElementById('preview-img');
+      img.src = result; // show original for preview quality
+      img.style.display = 'block';
 
-    // Hide results if re-uploading
-    document.getElementById('results').style.display = 'none';
-    document.getElementById('results').classList.remove('visible');
-    document.getElementById('error-msg').classList.remove('visible');
+      document.getElementById('upload-placeholder').style.display = 'none';
+      document.getElementById('upload-zone').classList.add('has-image');
+      document.getElementById('generate-btn').disabled = false;
+
+      // Hide results if re-uploading
+      document.getElementById('results').style.display = 'none';
+      document.getElementById('results').classList.remove('visible');
+      document.getElementById('error-msg').classList.remove('visible');
+    };
+    imgEl.src = result;
   };
   reader.readAsDataURL(file);
 }
@@ -536,6 +567,22 @@ async function generatePalettes() {
 }
 
 // ── RENDER ───────────────────────────────────────────
+// ── CONTRAST RATIO CALCULATOR ────────────────────────
+function hexToRgb(hex) {
+  const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+  return [r,g,b];
+}
+function relativeLuminance([r,g,b]) {
+  const s = v => { v /= 255; return v <= 0.03928 ? v/12.92 : Math.pow((v+0.055)/1.055, 2.4); };
+  return 0.2126*s(r) + 0.7152*s(g) + 0.0722*s(b);
+}
+function contrastRatio(hex1, hex2) {
+  const l1 = relativeLuminance(hexToRgb(hex1));
+  const l2 = relativeLuminance(hexToRgb(hex2));
+  const lighter = Math.max(l1,l2), darker = Math.min(l1,l2);
+  return ((lighter + 0.05) / (darker + 0.05)).toFixed(1);
+}
+
 function renderPalettes(palettes) {
   const grid = document.getElementById('palettes-grid');
   grid.innerHTML = '';
@@ -543,6 +590,10 @@ function renderPalettes(palettes) {
   palettes.forEach((palette, pi) => {
     const card = document.createElement('div');
     card.className = 'palette-card';
+
+    // Find dark + light for contrast checks
+    const darkCol = palette.colours.find(c => c.role === 'Dark');
+    const lightCol = palette.colours.find(c => c.role === 'Light');
 
     // Banner
     const banner = document.createElement('div');
@@ -558,22 +609,21 @@ function renderPalettes(palettes) {
     const body = document.createElement('div');
     body.className = 'palette-body';
 
-    // Top row
     const top = document.createElement('div');
     top.className = 'palette-top';
-    top.innerHTML = `
-      <div>
-        <div class="palette-name">${palette.name}</div>
-        <div class="palette-mood">${palette.mood}</div>
-      </div>`;
+    top.innerHTML = `<div><div class="palette-name">${palette.name}</div><div class="palette-mood">${palette.mood}</div></div>`;
 
     // Swatches
     const swatchRow = document.createElement('div');
     swatchRow.className = 'swatches-row';
 
-    palette.colours.forEach((colour, ci) => {
+    palette.colours.forEach((colour) => {
+      const isPop = colour.role === 'Pop';
+      const isDark = colour.role === 'Dark';
+      const isLight = colour.role === 'Light';
+
       const item = document.createElement('div');
-      item.className = 'swatch-item';
+      item.className = 'swatch-item' + (isPop ? ' is-pop' : '');
 
       const block = document.createElement('div');
       block.className = 'swatch-block';
@@ -581,12 +631,22 @@ function renderPalettes(palettes) {
       block.title = `Copy ${colour.hex}`;
       block.onclick = () => copyHex(colour.hex, block);
 
+      // Contrast badge — show Dark:Light ratio on both
+      let contrastHtml = '';
+      if ((isDark || isLight) && darkCol && lightCol) {
+        const ratio = contrastRatio(darkCol.hex, lightCol.hex);
+        const passes = parseFloat(ratio) >= 4.5;
+        contrastHtml = `<span class="contrast-badge ${passes ? 'pass' : 'fail'}">${passes ? '✓' : '✗'} ${ratio}:1 WCAG AA</span>`;
+      }
+
       const meta = document.createElement('div');
       meta.className = 'swatch-meta';
       meta.innerHTML = `
-        <div class="swatch-role">${colour.role}</div>
+        <div class="swatch-role">${isPop ? '★ Pop' : colour.role}</div>
         <div class="swatch-name">${colour.name}</div>
-        <div class="swatch-hex" onclick="copyHex('${colour.hex}', this)">${colour.hex}</div>`;
+        <div class="swatch-hex" onclick="copyHex('${colour.hex}', this)">${colour.hex}</div>
+        <div class="swatch-use">${colour.use || ''}</div>
+        ${contrastHtml}`;
 
       item.appendChild(block);
       item.appendChild(meta);
@@ -606,13 +666,10 @@ function renderPalettes(palettes) {
     body.appendChild(actions);
     card.appendChild(banner);
     card.appendChild(body);
-
-    // Store palette data on card for download
     card.dataset.palette = JSON.stringify(palette);
     grid.appendChild(card);
   });
 
-  // Store palettes globally for download
   window._palettes = palettes;
 
   document.getElementById('results').style.display = 'block';
@@ -636,8 +693,18 @@ function copyHex(hex, el) {
 
 function copyAllHex(paletteIndex) {
   const palette = window._palettes[paletteIndex];
-  const text = palette.colours.map(c => `${c.role}: ${c.hex}  (${c.name})`).join('\n');
-  const full = `${palette.name}\n${'-'.repeat(30)}\n${text}`;
+  const text = palette.colours.map(c => {
+    const pop = c.role === 'Pop' ? ' ★' : '';
+    return `${c.role}${pop}: ${c.hex}  (${c.name})  — ${c.use || ''}`;
+  }).join('\n');
+  const darkCol = palette.colours.find(c => c.role === 'Dark');
+  const lightCol = palette.colours.find(c => c.role === 'Light');
+  let contrastNote = '';
+  if (darkCol && lightCol) {
+    const ratio = contrastRatio(darkCol.hex, lightCol.hex);
+    contrastNote = `\nDark/Light contrast: ${ratio}:1 ${parseFloat(ratio) >= 4.5 ? '✓ WCAG AA pass' : '✗ WCAG AA fail'}`;
+  }
+  const full = `${palette.name}\n${palette.mood}\n${'—'.repeat(40)}\n${text}${contrastNote}\n\nGenerated by Flourish Online — flourishonline.com.au`;
   navigator.clipboard.writeText(full).then(() => showToast('All hex codes copied!'));
 }
 
@@ -645,62 +712,93 @@ function copyAllHex(paletteIndex) {
 function downloadPalette(paletteIndex) {
   const palette = window._palettes[paletteIndex];
   const canvas = document.createElement('canvas');
-  const W = 1200, H = 440;
+  const W = 1800, H = 520;
   canvas.width = W; canvas.height = H;
   const ctx = canvas.getContext('2d');
 
-  const swatchW = W / palette.colours.length;
-  const swatchH = 260;
+  const n = palette.colours.length; // 6
+  const PAD = 20, GAP = 10;
+  const swatchW = (W - PAD*2 - GAP*(n-1)) / n;
+  const popH = 300, normalH = 260;
 
-  // Background
-  ctx.fillStyle = '#FAF7F2';
+  // Background — use Light colour if available, else cream
+  const lightCol = palette.colours.find(c => c.role === 'Light');
+  ctx.fillStyle = lightCol ? lightCol.hex : '#FAF7F2';
   ctx.fillRect(0, 0, W, H);
 
   // Swatches
   palette.colours.forEach((c, i) => {
+    const isPop = c.role === 'Pop';
+    const x = PAD + i * (swatchW + GAP);
+    const h = isPop ? popH : normalH;
+    const y = isPop ? 16 : 36;
     ctx.fillStyle = c.hex;
     ctx.beginPath();
-    const r = 12;
-    const x = i * swatchW + 16;
-    const y = 24;
-    const w = swatchW - 32;
-    const h = swatchH;
-    ctx.roundRect(x, y, w, h, r);
+    ctx.roundRect(x, y, swatchW, h, 10);
     ctx.fill();
+
+    // Pop star badge
+    if (isPop) {
+      ctx.fillStyle = '#2C2420';
+      ctx.font = 'bold 22px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('★ POP', x + swatchW/2, y + h - 16);
+    }
   });
 
   // Labels
   ctx.textAlign = 'left';
   palette.colours.forEach((c, i) => {
-    const x = i * swatchW + 24;
-    const baseY = swatchH + 52;
+    const isPop = c.role === 'Pop';
+    const x = PAD + i * (swatchW + GAP) + 8;
+    const baseY = (isPop ? popH : normalH) + (isPop ? 16 : 36) + 30;
 
     ctx.fillStyle = '#C97B6E';
-    ctx.font = '500 18px DM Sans, Arial';
-    ctx.fillText(c.role.toUpperCase(), x, baseY);
+    ctx.font = 'bold 15px sans-serif';
+    ctx.fillText((isPop ? '★ ' : '') + c.role.toUpperCase(), x, baseY);
 
     ctx.fillStyle = '#2C2420';
-    ctx.font = '400 22px DM Sans, Arial';
-    ctx.fillText(c.name, x, baseY + 30);
+    ctx.font = '400 17px sans-serif';
+    const name = c.name.length > 14 ? c.name.slice(0,13) + '…' : c.name;
+    ctx.fillText(name, x, baseY + 22);
 
     ctx.fillStyle = '#6B5751';
-    ctx.font = '300 20px DM Sans, Arial';
-    ctx.fillText(c.hex, x, baseY + 56);
+    ctx.font = '300 15px monospace';
+    ctx.fillText(c.hex, x, baseY + 42);
+
+    // Usage hint
+    if (c.use) {
+      ctx.fillStyle = '#9B8B87';
+      ctx.font = 'italic 12px sans-serif';
+      const use = c.use.length > 18 ? c.use.slice(0,17) + '…' : c.use;
+      ctx.fillText(use, x, baseY + 60);
+    }
   });
 
   // Palette name
   ctx.fillStyle = '#2C2420';
-  ctx.font = '300 28px Cormorant Garamond, Georgia, serif';
+  ctx.font = '300 30px Georgia, serif';
   ctx.textAlign = 'left';
-  ctx.fillText(palette.name, 24, H - 28);
+  ctx.fillText(palette.name, PAD, H - 18);
+
+  // Contrast note
+  const darkCol = palette.colours.find(c => c.role === 'Dark');
+  if (darkCol && lightCol) {
+    const l1 = relativeLuminance(hexToRgb(darkCol.hex));
+    const l2 = relativeLuminance(hexToRgb(lightCol.hex));
+    const ratio = ((Math.max(l1,l2)+0.05)/(Math.min(l1,l2)+0.05)).toFixed(1);
+    const passes = parseFloat(ratio) >= 4.5;
+    ctx.fillStyle = passes ? '#2E7D32' : '#C62828';
+    ctx.font = '500 13px sans-serif';
+    ctx.fillText((passes ? '✓' : '✗') + ' Dark/Light contrast ' + ratio + ':1 WCAG AA', PAD, H - 2);
+  }
 
   // Branding
   ctx.fillStyle = '#C97B6E';
-  ctx.font = '500 16px DM Sans, Arial';
+  ctx.font = '500 14px sans-serif';
   ctx.textAlign = 'right';
-  ctx.fillText('flourishonline.com.au', W - 24, H - 28);
+  ctx.fillText('flourishonline.com.au', W - PAD, H - 18);
 
-  // Download
   const link = document.createElement('a');
   link.download = palette.name.toLowerCase().replace(/\s+/g, '-') + '-palette.png';
   link.href = canvas.toDataURL('image/png');
